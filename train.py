@@ -41,7 +41,6 @@ class_choice = ['Cap','Earphone']
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-
 class TreeGAN():
     def __init__(self, args):
         self.args = args
