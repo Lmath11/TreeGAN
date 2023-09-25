@@ -197,11 +197,11 @@ class TreeGAN():
                     gen_class = list(CATEGORIES.keys())[pred_choice.cpu().numpy()]
                     pred_prob = preds[0, pred_choice]
                     print(f'The predicted class is: {pred_class}, with probability: {pred_prob}')
-                    """if gen_class == pred_class:
+                    if gen_class == pred_class:
                         certo = certo + 1
                     totalcount = totalcount + 1
                     accuracy = certo / totalcount
-                    print('Acurácia:', accuracy)"""
+                    print('Acurácia:', accuracy)
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=new_x, y=loss_G,
                                         mode='lines',
