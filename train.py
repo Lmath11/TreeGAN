@@ -105,6 +105,8 @@ class TreeGAN():
         
         for epoch in range(epoch_log, self.args.epochs):
             iter_total = 0
+            totalcount = 0
+            certo = 0
             for _iter, data in enumerate(self.dataLoader, iter_log):
                 # Start Time
                 start_time = time.time()
@@ -190,10 +192,16 @@ class TreeGAN():
                         preds, _, _ = self.classifier(norm_points)
                         preds = torch.softmax(preds, dim=1)
                         pred_choice = preds.squeeze().argmax()
+                        gen_choice = preds.squeeze().argmax()
                     pred_class = list(CATEGORIES.keys())[pred_choice.cpu().numpy()]
+                    gen_class = list(CATEGORIES.keys())[pred_choice.cpu().numpy()]
                     pred_prob = preds[0, pred_choice]
                     print(f'The predicted class is: {pred_class}, with probability: {pred_prob}')
-                    
+                    if gen_class == pred_class:
+                        certo = certo + 1
+                    totalcount = totalcount + 1
+                    accuracy = certo / totalcount
+                    print('Acurácia:', accuracy)
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=new_x, y=loss_G,
                                         mode='lines',
@@ -237,20 +245,6 @@ class TreeGAN():
                     fig.show()
 
 
-                    
-                     
-                    
-                    
-
-
-
-                    
-                    
-                    
-                    
-                    
-
-
                     """self.vis.line(X=plot_X, Y=plot_Y, win=1,
                                   opts={'title': 'TreeGAN Loss', 'legend': loss_legend, 'xlabel': 'Iteration', 'ylabel': 'Loss'})"""
 
@@ -273,7 +267,7 @@ class TreeGAN():
                         'D_loss': loss_log['D_loss'],
                         'G_loss': loss_log['G_loss'],
                         'FPD': metric['FPD']
-                }, save_ckpt+str(epoch)+'.pt')
+                }, save_ckpt+str(epoch)+'pred_class_'+pred_class+'.pt')
 
                 print('Checkpoint is saved.')
                 
