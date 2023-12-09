@@ -19,12 +19,12 @@ import plotly.graph_objects as go
 import torch.nn.functional as F
 
 CATEGORIES = {
-    'Airplane': 0,
+    #'Airplane': 0,
     #'Bag': 1,
-    #'Cap': 2,
+    'Cap': 2,
    # 'Car': 3,
-    'Chair': 4,
-    #'Earphone': 5,
+    #'Chair': 4,
+    'Earphone': 5,
    ## 'Guitar': 6,
    # 'Knife': 7,
    # 'Lamp': 8,
@@ -37,7 +37,7 @@ CATEGORIES = {
    # 'Table': 15
     }
 
-class_choice = ['Airplane','Chair']
+class_choice = ['Cap','Earphone']
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -163,7 +163,7 @@ class TreeGAN():
                       "[ G_Loss ] ", "{: 7.6f}".format(g_loss), 
                       "[ Time ] ", "{:4.2f}s".format(time.time()-start_time))
 
-                if _iter % 600 == 0 and _iter !=0:
+                if _iter % 20 == 0 and _iter !=0:
 
             
                     generated_point = self.G.getPointcloud()
@@ -258,7 +258,7 @@ class TreeGAN():
                     print('Figures are saved.')
 
             # ---------------------- Save checkpoint --------------------- #
-            if epoch % 5 == 0 and not save_ckpt == None:
+            if epoch % 50 == 0 and not save_ckpt == None:
                 torch.save({
                         'epoch': epoch,
                         'iter': _iter,
