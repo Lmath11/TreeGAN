@@ -163,7 +163,7 @@ class TreeGAN():
                       "[ G_Loss ] ", "{: 7.6f}".format(g_loss), 
                       "[ Time ] ", "{:4.2f}s".format(time.time()-start_time))
 
-                if _iter % 1045 == 0 and _iter !=0:
+                if _iter % 10 == 0 and _iter !=0:
 
             
                     generated_point = self.G.getPointcloud()
