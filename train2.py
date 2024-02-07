@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from data.dataset_benchmark import BenchmarkDataset
 from data.shapenet_dataset import ShapenetDataset
+from Classificador.classificador import Tnet, PointNetBackbone, PointNetClassHead, PointNetSegHead
 from model.gan_network import Generator, Discriminator
 from model.gradient_penalty import GradientPenalty
 from evaluation.FPD import calculate_fpd
@@ -11,21 +13,46 @@ from arguments import Arguments
 import plotly.express as px
 import pandas as pd
 import time
-#import visdom
+
 import numpy as np
 import plotly.graph_objects as go
+import torch.nn.functional as F
 
-class_choice = ['Airplane','Chair']
+CATEGORIES = {
+    'Airplane': 0,
+    'Bag': 1,
+    'Cap': 2,
+    'Car': 3,
+    'Chair': 4,
+    'Earphone': 5,
+    'Guitar': 6,
+    'Knife': 7,
+    'Lamp': 8,
+    'Laptop': 9,
+    'Motorbike': 10,
+    'Mug': 11,
+    'Pistol': 12,
+    'Rocket': 13,
+    'Skateboard': 14,
+    'Table': 15
+    }
+
+class_choice = ['Bag','Rocket']
+
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class TreeGAN():
     def __init__(self, args):
         self.args = args
         # ------------------------------------------------Dataset---------------------------------------------- #
-        self.data = ShapenetDataset(root=args.dataset_path, npoints=args.point_num, split='train', class_choice=class_choice)
+        self.data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=True, class_choice=class_choice)
         self.dataLoader = torch.utils.data.DataLoader(self.data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=2)
         print("Training Dataset : {} prepared.".format(len(self.data)))
         # ----------------------------------------------------------------------------------------------------- #
-
+        MODEL_PATH = '/content/drive/MyDrive/ResultadosLothar/Classificador/cls_model_167.pth'
+        self.classifier = PointNetClassHead(num_points=args.point_num, num_global_feats=1024, k=16).to(args.device)
+        self.classifier.load_state_dict(torch.load(MODEL_PATH))
+        self.classifier.eval()
         # -------------------------------------------------Module---------------------------------------------- #
         self.G = Generator(batch_size=args.batch_size, features=args.G_FEAT, degrees=args.DEGREE, support=args.support).to(args.device)
         self.D = Discriminator(batch_size=args.batch_size, features=args.D_FEAT).to(args.device)             
@@ -35,16 +62,11 @@ class TreeGAN():
 
         self.GP = GradientPenalty(args.lambdaGP, gamma=1, device=args.device)
         print("Network prepared.")
+    
         # ----------------------------------------------------------------------------------------------------- #
-
-        # ---------------------------------------------Visualization------------------------------------------- #
-        """self.vis = visdom.Visdom(port=args.visdom_port)"""
-        """assert self.vis.check_connection()"""
-        print("Visdom connected.")
-        # ----------------------------------------------------------------------------------------------------- #
-
+    
     def run(self, save_ckpt=None, load_ckpt=None):        
-        color_num = 4
+        """color_num = 4
         chunk_size = int(self.args.point_num / color_num)
         colors = np.array([(227,0,27),(231,64,28),(237,120,15),(246,176,44),
                            (252,234,0),(224,221,128),(142,188,40),(18,126,68),
@@ -53,7 +75,7 @@ class TreeGAN():
                            (172,113,161),(202,174,199),(145,35,132),(201,47,133),
                            (229,0,123),(225,106,112),(163,38,42),(128,128,128)])
         colors = colors[np.random.choice(len(colors), color_num, replace=False)]
-        label = torch.stack([torch.ones(chunk_size).type(torch.LongTensor) * inx for inx in range(1,int(color_num)+1)], dim=0).view(-1)
+        label = torch.stack([torch.ones(chunk_size).type(torch.LongTensor) * inx for inx in range(1,int(color_num)+1)], dim=0).view(-1)"""
 
         if load_ckpt is None:
             epoch_log = 0
@@ -80,13 +102,17 @@ class TreeGAN():
             metric['FPD'] = checkpoint['FPD']
             
             print("Checkpoint loaded.")
-
+        
         for epoch in range(epoch_log, self.args.epochs):
+            iter_total = 0
+            totalcount = 0
+            certo = 0
             for _iter, data in enumerate(self.dataLoader, iter_log):
                 # Start Time
                 start_time = time.time()
                 point, _ = data
                 point = point.to(args.device)
+                iter_total+=1
 
                 # -------------------- Discriminator -------------------- #
                 for d_iter in range(self.args.D_iter):
@@ -128,7 +154,8 @@ class TreeGAN():
                 self.optimizerG.step()
 
                 loss_log['G_loss'].append(g_loss.item())
-
+                
+        
                 # --------------------- Visualization -------------------- #
 
                 print("[Epoch/Iter] ", "{:3} / {:3}".format(epoch, _iter),
@@ -136,8 +163,11 @@ class TreeGAN():
                       "[ G_Loss ] ", "{: 7.6f}".format(g_loss), 
                       "[ Time ] ", "{:4.2f}s".format(time.time()-start_time))
 
-                if _iter % 200 == 0 and _iter !=0:
+                if _iter % 10 == 0 and _iter !=0:
+
+            
                     generated_point = self.G.getPointcloud()
+                    points = generated_point
                     """plot_X = np.stack([np.arange(len(loss_log[legend])) for legend in loss_legend], 1)
                     plot_Y = np.stack([np.array(loss_log[legend]) for legend in loss_legend], 1)"""
                     plot_X = np.stack([np.arange(len(loss_log[legend])) for legend in loss_legend], 1) 
@@ -150,6 +180,28 @@ class TreeGAN():
                     #print(plot_X)
                     #print(loss_G)
                     #print(loss_D)
+                    
+                    torch.cuda.empty_cache()
+                    points = generated_point
+            
+                    norm_points = ShapenetDataset.normalize_points(points)
+                    
+                    norm_points = ShapenetDataset.normalize_points(points)
+                    with torch.no_grad():
+                        norm_points = norm_points.unsqueeze(0).transpose(2, 1).to(DEVICE)
+                        preds, _, _ = self.classifier(norm_points)
+                        preds = torch.softmax(preds, dim=1)
+                        pred_choice = preds.squeeze().argmax()
+                        gen_choice = preds.squeeze().argmax()
+                    pred_class = list(CATEGORIES.keys())[pred_choice.cpu().numpy()]
+                    gen_class = list(CATEGORIES.keys())[pred_choice.cpu().numpy()]
+                    pred_prob = preds[0, pred_choice]
+                    print(f'The predicted class is: {pred_class}, with probability: {pred_prob}')
+                    if gen_class == pred_class:
+                        certo = certo + 1
+                    totalcount = totalcount + 1
+                    accuracy = certo / totalcount
+                    print('Acurácia:', accuracy)
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=new_x, y=loss_G,
                                         mode='lines',
@@ -162,6 +214,10 @@ class TreeGAN():
                     x = generated_point_cpu[:, 2]
                     y = generated_point_cpu[:, 0]
                     z = generated_point_cpu[:, 1]
+                    
+                    colors = np.array([(0, 128, 0), (0, 255, 0), (0, 192, 192),(0, 0, 128)])
+                    colors = colors[np.random.choice(len(colors), size=len(x), replace=True)]
+
                     trace = go.Scatter3d(
                         x=x,
                         y=y,
@@ -170,7 +226,6 @@ class TreeGAN():
                         marker=dict(
                             size=2,
                             color=colors,
-                            colorscale='Viridis',  # Adjust the colorscale as per your preference
                             opacity=1,
                         )
                     )
@@ -206,7 +261,7 @@ class TreeGAN():
                     print('Figures are saved.')
 
             # ---------------------- Save checkpoint --------------------- #
-            if epoch % 3 == 0 and not save_ckpt == None:
+            if epoch % 100 == 0 and not save_ckpt == None:
                 torch.save({
                         'epoch': epoch,
                         'iter': _iter,
@@ -218,7 +273,9 @@ class TreeGAN():
                 }, save_ckpt+str(epoch)+'.pt')
 
                 print('Checkpoint is saved.')
-            
+                
+                
+                
             # ---------------- Frechet Pointcloud Distance --------------- #
             if epoch % 1 == 0:
                 fake_pointclouds = torch.Tensor([])
@@ -232,10 +289,10 @@ class TreeGAN():
                 fpd = calculate_fpd(fake_pointclouds, batch_size=100, dims=1808, device=self.args.device)
                 metric['FPD'].append(fpd)
                 print('[{:4} Epoch] Frechet Pointcloud Distance <<< {:.10f} >>>'.format(epoch, fpd))
-
                 class_name = class_choice if class_choice is not None else 'all'
-                torch.save(fake_pointclouds, '/content/drive/MyDrive/ResultadosLothar/Generated/treeGCN_{}_{}.pt'.format(str(epoch), class_name))
+                #torch.save(fake_pointclouds, '/content/drive/MyDrive/ResultadosLothar/Generated/treeGCN3class_{}_{}.pt'.format(str(epoch), class_name))
                 del fake_pointclouds
+                
             
                 
                     
