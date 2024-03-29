@@ -37,7 +37,7 @@ CATEGORIES = {
     'Table': 15
     }
 
-class_choice = ['Bag','Rocket']
+class_choice = ['Cap','Earphone']
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
