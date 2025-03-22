@@ -37,7 +37,7 @@ CATEGORIES = {
     'Table': 15
     }
 
-class_choice = ['Bag','Rocket']
+class_choice = ['Airplane','Chair']
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -88,7 +88,7 @@ class TreeGAN():
         else:
             metric = {}
             loss_log = {'G_loss': [], 'D_loss': []}
-            checkpoint = torch.load(load_ckpt)
+            checkpoint = torch.load(load_ckpt, weights_only=False)
             self.D.load_state_dict(checkpoint['D_state_dict'])
             self.G.load_state_dict(checkpoint['G_state_dict'])
 
@@ -163,7 +163,7 @@ class TreeGAN():
                       "[ G_Loss ] ", "{: 7.6f}".format(g_loss), 
                       "[ Time ] ", "{:4.2f}s".format(time.time()-start_time))
 
-                if _iter % 5 == 0 and _iter !=0:
+                if _iter % 50 == 0 and _iter !=0:
 
             
                     generated_point = self.G.getPointcloud()
